@@ -1,81 +1,50 @@
 const oracledb = require('oracledb');
 const config = {
-    user: 'c##fgt',
-    password: 'password',
-    connectString: 'localhost:1521/orcl'
+    hrPool: {
+        user: process.env.NODE_ORACLEDB_USER || "c##fgt",
+        password: process.env.NODE_ORACLEDB_PASSWORD || "password",
+        connectString: process.env.NODE_ORACLEDB_CONNECTIONSTRING || "localhost:1521/orcl",
+        poolMin: 10,
+        poolMax: 10,
+        poolIncrement: 0
+      }
+};
+
+async function init() {
+    const pool = await oracledb.createPool(config.hrPool);
 }
 
-async function findIDTodo (id) {
-    let connection;
-    const opts = [];
-    opts.outFormat = oracledb.OBJECT;
-    opts.autoCommit = true;
+async function close() {
+    await oracledb.getPool().close();
+}
 
-    try {
-        connection = await oracledb.getConnection(config);
-        const result = await connection.execute(/*query*/
-            `SELECT * FROM baseclientes WHERE idcliente = :id`, [id], opts
-        );
+function executeQuery(statement, binds = [], opts = []) {
+    return new Promise(async (resolve, reject) => {
+        let connection;
 
-        console.log(result.rows[0]);
+        opts.outFormat = oracledb.OBJECT;
+        opts.autoCommit = true;
 
-    } catch (error) {
-        console.log(error);
-    } finally {
-        if (connection) {
-            await connection.close();
+        try {
+            
+            connection = await oracledb.getConnection();
+            const result = await connection.execute(statement, binds, opts);
+            resolve(result);
+
+        } catch (error) {
+            reject(error);
+        } finally {
+            if (connection) {
+                try {
+                    await connection.close();
+                } catch (err) {
+                    console.log(err);
+                }
+            }
         }
-    }
-
-    return result;
+    });
 }
 
-async function findIDRes (id) {
-    let connection;
-    const opts = [];
-    opts.outFormat = oracledb.OBJECT;
-    opts.autoCommit = true;
-
-    try {
-        connection = await oracledb.getConnection(config);
-        const result = await connection.execute(/*query*/
-            `SELECT idCliente, nombre, sexo, segmento, cuenta FROM baseclientes WHERE idcliente = :id`, [id], opts
-        );
-
-        console.log(result.rows[0]);
-
-    } catch (error) {
-        console.log(error);
-    } finally {
-        if (connection) {
-            await connection.close();
-        }
-    }
-
-    return result;
-}
-
-async function findUser(id, auth) {
-    let connection;
-
-    try {
-        connection = await oracledb.getConnection(config);
-        const result = await connection.execute(/*query*/
-            `SELECT perfil FROM baseusuarios WHERE idusuario = :id AND auth = :auth`, [id, auth]
-        );
-
-        console.log(result.rows[0]);
-
-    } catch (error) {
-        console.log(error);
-    } finally {
-        if (connection) {
-            await connection.close();
-        }
-        // return result;
-    }
-}
-
-module.exports.findIDTodo = findIDTodo;
-module.exports.findIDRes = findIDRes;
-module.exports.findUser = findUser;
+module.exports.executeQuery = executeQuery;
+module.exports.close = close;
+module.exports.init = init;
